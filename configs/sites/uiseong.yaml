@@ -14,6 +14,9 @@ dem:
   # 작품설명서가 지정한 DEM 은 **국토지리정보원 5m 급**이다. 회원가입 후
   # 수동 내려받기라 자동화할 수 없어 기본값은 Copernicus 30m(무인증)이다.
   # 5m DEM 을 받아 아래 디렉터리에 넣으면 그쪽이 우선 적용된다.
+  # (NASA SRTM 30m 도 검토했으나 2026년 기준 실제 파일 내려받기는 NASA
+  #  Earthdata 로그인이 필요해 자동화 불가 — 해상도도 Copernicus 30m 와
+  #  동급이라 실익이 없다. 아래는 비워 둔 채 Copernicus 30m 를 계속 쓴다.)
   # local_dir: data/dem/uiseong_ngii_5m
   # Copernicus DEM 은 EGM2008 정표고 기준이다.
   # 텔레메트리 고도가 WGS84 타원체고라면 한국 기준 약 -25.0 을 넣어야 한다.
