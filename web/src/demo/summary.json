@@ -1,0 +1,1 @@
+{"counts": {"FLARE": 26, "GLOW": 15, "SPARK": 16}, "total": 57, "labelled": 0, "queue": 15, "scorer": {"fitted": false, "n_train": 0, "mode": "sparse", "tau_high": 0.7, "tau_low": 0.35}}

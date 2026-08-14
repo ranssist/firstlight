@@ -1,0 +1,50 @@
+[project]
+name = "firstlight"
+version = "0.1.0"
+description = "드론·AI 기반 산불 조기탐지 파이프라인 — 탐지·시퀀스검증·지오레퍼런싱·등급라우팅"
+readme = "README.md"
+# 3.13+ 는 rasterio/onnxruntime 휠 가용성이 불안정하여 3.12 로 고정한다.
+requires-python = ">=3.12,<3.13"
+dependencies = [
+    "numpy>=1.26",
+    "scipy>=1.11",
+    "rasterio>=1.3",
+    "pyproj>=3.6",
+    "scikit-learn>=1.4",
+    "typer>=0.12",
+    "pyyaml>=6.0",
+    "pydantic>=2.6",
+    "requests>=2.31",
+    "rich>=13.7",
+]
+
+[project.optional-dependencies]
+# M2 이후에만 필요 (무거움). `uv sync --extra cv` 로 설치.
+cv = [
+    "opencv-python>=4.9",
+    "onnxruntime>=1.17",
+    "openvino>=2024.0",
+]
+# M5 대시보드. 저장소는 표준 라이브러리 sqlite3 를 쓰므로 ORM 은 없다.
+serve = [
+    "fastapi>=0.110",
+    "uvicorn[standard]>=0.29",
+]
+
+[project.scripts]
+firstlight = "firstlight.cli:app"
+
+[build-system]
+requires = ["hatchling"]
+build-backend = "hatchling.build"
+
+[tool.hatch.build.targets.wheel]
+packages = ["src/firstlight"]
+
+[dependency-groups]
+# httpx 는 starlette 의 TestClient 가 요구한다 (API 테스트용).
+dev = ["pytest>=8.0", "httpx>=0.27"]
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+pythonpath = ["src"]

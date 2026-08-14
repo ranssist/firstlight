@@ -1,0 +1,40 @@
+# ── Python ───────────────────────────────────────────────────────────
+.venv/
+__pycache__/
+*.py[cod]
+*.egg-info/
+.pytest_cache/
+.ruff_cache/
+
+# ── 프런트엔드 (web/) ────────────────────────────────────────────────
+node_modules/
+web/dist/
+web/dist-demo/
+*.tsbuildinfo
+
+# ── 내려받는 자산 (스크립트로 재현 가능) ─────────────────────────────
+# DEM·데이터셋·가중치는 수백 MB 라 커밋하지 않는다.
+#   uv run firstlight fetch-dem --site uiseong
+#   uv run python scripts/fetch_model.py
+#   uv run python scripts/fetch_figlib.py --sequences 16
+data/
+models/
+*.tif
+*.onnx
+*.pt
+*.mp4
+*.db
+
+# ── 생성 산출물 ──────────────────────────────────────────────────────
+# 측정 결과는 `firstlight report` 로 다시 만든다. 핵심 수치는 README 에 있다.
+out/
+
+# ── 비밀 ─────────────────────────────────────────────────────────────
+.env
+configs/secrets.yaml
+
+# ── 도구·OS ──────────────────────────────────────────────────────────
+.claude/
+.DS_Store
+Thumbs.db
+*.part

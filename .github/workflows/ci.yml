@@ -1,0 +1,56 @@
+name: CI
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+  workflow_dispatch:
+
+jobs:
+  python:
+    name: 파이썬 테스트
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: uv 설치
+        uses: astral-sh/setup-uv@v5
+        with:
+          enable-cache: true
+
+      # 3.13+ 는 rasterio/onnxruntime 휠 가용성이 불안정해 3.12 로 고정한다.
+      - name: 의존성 설치
+        run: uv sync --group dev --extra cv --extra serve
+
+      # 테스트는 DEM·데이터셋·모델 가중치를 요구하지 않는다.
+      # 지형은 합성 DEM, 탐지기는 가짜 구현을 쓰므로 내려받기 없이 돈다.
+      - name: 테스트
+        run: uv run pytest -q
+
+      # 외부 데이터 없이 도는 검증이라 CI 에서 매번 돌릴 수 있다.
+      - name: 지오레퍼런싱 자체검증
+        run: uv run firstlight geo-selftest --synthetic --trials 100
+
+  web:
+    name: 대시보드 빌드
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: web
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "22"
+          cache: npm
+          cache-dependency-path: web/package-lock.json
+
+      - run: npm ci
+
+      - name: 타입 검사 + 빌드
+        run: npm run build
+
+      # 공유용 단일 파일 데모. 저장소에 구워 둔 데모 데이터로 빌드된다.
+      - name: 데모 빌드
+        run: npm run build:demo
