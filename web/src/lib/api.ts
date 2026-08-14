@@ -32,6 +32,9 @@ export interface FireEvent {
   cep90_m: number | null
   geo_reject_reason: string | null
 
+  /** 탐지 시점 크롭 이미지. 실시간 모드는 파일명, 데모는 data URI 다. */
+  snapshot: string | null
+
   /** 시퀀스 검증 2조건 (작품설명서 Ⅱ-1). 등급의 직접적 근거다. */
   flow_ok: boolean
   area_ok: boolean
@@ -114,6 +117,15 @@ export const api = {
       "/api/scorer/retrain",
       { method: "POST" },
     ),
+}
+
+/** 스냅샷을 화면에 걸 수 있는 URL 로 바꾼다.
+ *
+ * 데모는 이미 data URI 라 그대로 쓰고, 실시간 모드는 파일명이라 API 경로를
+ * 붙인다. 없으면 null — 호출부가 자리를 비워 둔다. */
+export function snapshotUrl(snapshot: string | null): string | null {
+  if (!snapshot) return null
+  return snapshot.startsWith("data:") ? snapshot : `/api/snapshots/${snapshot}`
 }
 
 /** 등급별 유틸리티 클래스. 소개서 §8 색을 Tailwind 토큰으로 등록해 두었다. */

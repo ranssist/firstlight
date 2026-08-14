@@ -14,6 +14,7 @@
 from __future__ import annotations
 
 from dataclasses import dataclass, field
+from pathlib import Path
 
 import numpy as np
 
@@ -89,8 +90,10 @@ class Pipeline:
         camera: str = "",
         wind: Wind | None = None,
         criteria_config: CriteriaConfig | None = None,
+        snapshot_dir: Path | None = None,
     ) -> None:
         self.detector = detector
+        self.snapshot_dir = snapshot_dir
         self.mode = VerifierMode.from_interval(frame_interval_s)
         self.scorer = scorer or SequenceScorer(mode=self.mode)
         self.criteria_config = criteria_config or CriteriaConfig()
@@ -130,7 +133,7 @@ class Pipeline:
 
         result = FrameResult(frame_index, timestamp, detections, egomotion_ok=ego_ok)
         for track in active:
-            result.verdicts.append(self._judge(track, timestamp, pose))
+            result.verdicts.append(self._judge(track, timestamp, pose, frame_bgr))
 
         self._prev_gray = gray
         return result
@@ -156,7 +159,11 @@ class Pipeline:
         return stats, (homography is not None) if self._ego else True
 
     def _judge(
-        self, track: Track, timestamp: float, pose: CameraPose | None
+        self,
+        track: Track,
+        timestamp: float,
+        pose: CameraPose | None,
+        frame_bgr: np.ndarray | None = None,
     ) -> Verdict:
         features = extract_features(track, self.frame_interval_s, mode=self.mode)
         criteria = evaluate_criteria(track, features, self.criteria_config)
@@ -181,6 +188,25 @@ class Pipeline:
         )
 
         if self.router is not None:
+            # 탐지 시점 크롭을 남긴다 — 관제 요원의 1클릭 판정에 필요한
+            # "그 순간 그 자리의 그림"이다 (events/snapshot.py 참조).
+            snapshot = None
+            if frame_bgr is not None and self.snapshot_dir is not None:
+                from firstlight.events.snapshot import save_snapshot
+
+                snapshot = save_snapshot(
+                    frame_bgr,
+                    track.last.detection.bbox,
+                    self.snapshot_dir,
+                    # 이벤트마다 별도 파일 — 트랙 단위로 덮어쓰면 과거
+                    # 이벤트가 나중 프레임의 그림을 가리킨다.
+                    name=(
+                        f"{self.site or 'site'}"
+                        f"-t{track.track_id}-f{track.last.frame_index}"
+                    ),
+                    tier=tier.value,
+                )
+
             event = Event.from_verdict(
                 track_id=track.track_id,
                 tier=tier,
@@ -196,6 +222,7 @@ class Pipeline:
                 n_observations=track.hits,
                 criteria=criteria,
             )
+            event.snapshot = snapshot
             verdict.event = event
             verdict.notification = self.router.route(event, now=timestamp)
 
@@ -230,10 +257,9 @@ def build_pipeline(
     scorer_path: str | None = None,
     use_egomotion: bool = True,
     synthetic_dem_fallback: bool = False,
+    snapshot_dir: Path | str | None = "data/snapshots",
 ) -> tuple[Pipeline, CameraIntrinsics]:
     """설정 파일에서 파이프라인을 조립한다."""
-    from pathlib import Path
-
     from firstlight.config import CameraConfig, SiteConfig
     from firstlight.detect import OnnxDetector
     from firstlight.events.router import AlertRouter
@@ -266,5 +292,6 @@ def build_pipeline(
         use_egomotion=use_egomotion,
         site=site.name,
         camera=camera.name,
+        snapshot_dir=Path(snapshot_dir) if snapshot_dir else None,
     )
     return pipeline, camera.intrinsics

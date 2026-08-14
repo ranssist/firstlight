@@ -46,6 +46,8 @@ uv run firstlight geo-selftest --synthetic --trials 200
 | ② 자동 지오레퍼런싱 (50m 이내) | `geo/` | T3 폐루프 CEP 스윕 | `firstlight geo-selftest` |
 | ③ 3단계 등급 라우팅 | `verify/criteria.py` | 억제율 · GLOW 트리아지 | `firstlight run` → `firstlight serve` |
 
+관제 화면은 따로 볼 수 있다 — **[대시보드 데모](https://claude.ai/code/artifact/0339c414-9756-41fb-a891-007c23b39705)** (실제 FIgLib 시퀀스 처리 결과, 백엔드 없이 도는 정적 스냅샷).
+
 ### 등급은 점수가 아니라 조건 수로 정해진다
 
 작품설명서 Ⅱ-1 이 판정 규칙을 명시한다 — **두 조건을 동시에 만족하면 FLARE, 하나만 만족하면 GLOW, 둘 다 미달이면 SPARK.**
@@ -262,12 +264,28 @@ src/firstlight/
 ├─ api/         관제 백엔드 (web/dist 서빙)
 └─ pipeline.py  프레임 하나가 경보가 되기까지
 
-web/            React + TypeScript + Tailwind v4 + shadcn/ui
+web/            React + TypeScript + Tailwind v4 + shadcn/ui + Leaflet
 ├─ src/components/ui/   shadcn 생성 컴포넌트 (건드리지 않는다)
 ├─ src/components/      대시보드 컴포넌트
 ├─ src/assets/fonts/    Paperlogy woff2 (번들)
+├─ src/demo/            정적 데모용 고정 데이터 (build_demo_data.py 가 생성)
 └─ src/lib/api.ts       백엔드 응답 타입 — models.py 와 맞춰야 한다
 ```
+
+### 관제 화면이 보여주는 것
+
+작품설명서 「관제 대시보드 화면 설계」의 항목들이다.
+
+| 요소 | 구현 |
+|---|---|
+| 지도 패널 | Leaflet · 탐지 이벤트 + **CEP50/CEP90 원** + 최근접 진화대 |
+| 이벤트 카드 | 등급 · 좌표 · 신뢰도 · **탐지 시점 크롭 이미지** · 1클릭 판정 |
+| 판단 근거 | 2조건 통과/미달을 수치와 함께 표시 |
+| 실시간 수신 | WebSocket 푸시 (끊기면 폴링으로 물러나고 상태를 표시) |
+
+**탐지 스냅샷**(`events/snapshot.py`)은 박스만이 아니라 주변 맥락을 함께 자른다 — 박스만 보면 안개인지 연기인지 알 수 없고, 요원의 1클릭 판정이 성립하지 않기 때문이다. 이벤트마다 별도 파일로 남긴다: 트랙 단위로 덮어쓰면 과거 이벤트가 나중 프레임의 그림을 가리키게 된다.
+
+**지도 배경**은 실시간 모드에서 OSM 타일을, 정적 데모에서는 **DEM 음영기복도**를 쓴다. 데모는 외부 요청이 불가능한 환경(아티팩트 CSP)에 배포되기 때문이고, 산불에서 읽어야 할 배경이 도로망보다 능선·계곡이라 오히려 맞는 선택이다. 화질의 상한은 픽셀 수가 아니라 **DEM 해상도**가 정한다 — 30m 격자로는 9km 범위에 표본이 300개뿐이라, 5m DEM을 `dem.local_dir`에 연결하면 6배 세밀해진다.
 
 ### UI 폰트
 

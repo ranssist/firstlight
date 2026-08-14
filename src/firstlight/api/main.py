@@ -34,6 +34,7 @@ from firstlight.verify.scorer import SequenceScorer
 WEB_DIR = Path(__file__).resolve().parents[3] / "web"
 DIST_DIR = WEB_DIR / "dist"
 DEFAULT_SCORER_PATH = Path("models/scorer_sparse.json")
+SNAPSHOT_DIR = Path("data/snapshots")
 
 BUILD_MISSING_HTML = """<!doctype html>
 <html lang="ko"><head><meta charset="utf-8"><title>FIRSTLIGHT 관제</title>
@@ -87,6 +88,22 @@ def create_app(
             # 빌드가 없다고 API 까지 죽이지는 않는다. 무엇을 해야 하는지 알려준다.
             return BUILD_MISSING_HTML
         return path.read_text(encoding="utf-8")
+
+    @app.get("/api/snapshots/{filename}")
+    def snapshot(filename: str):
+        """탐지 시점 크롭 이미지 (작품설명서의 "연기 스냅샷").
+
+        경로 조작을 막기 위해 파일명만 받고 디렉터리 구분자는 거부한다 —
+        사용자 입력이 파일 경로가 되는 지점이라 반드시 막아야 한다.
+        """
+        from fastapi.responses import FileResponse
+
+        if "/" in filename or "\\" in filename or ".." in filename:
+            raise HTTPException(400, "잘못된 파일명")
+        path = (SNAPSHOT_DIR / filename).resolve()
+        if not path.is_file() or SNAPSHOT_DIR.resolve() not in path.parents:
+            raise HTTPException(404, "스냅샷이 없다")
+        return FileResponse(path, media_type="image/jpeg")
 
     @app.get("/favicon.svg")
     def favicon():

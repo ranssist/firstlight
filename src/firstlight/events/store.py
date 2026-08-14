@@ -35,6 +35,7 @@ CREATE TABLE IF NOT EXISTS events (
     flow_ok           INTEGER NOT NULL DEFAULT 0,
     area_ok           INTEGER NOT NULL DEFAULT 0,
     criteria          TEXT,
+    snapshot          TEXT,
     label             TEXT    NOT NULL DEFAULT 'unlabelled',
     features          TEXT,
     explanation       TEXT,
@@ -73,6 +74,7 @@ class EventStore:
             "flow_ok": "INTEGER NOT NULL DEFAULT 0",
             "area_ok": "INTEGER NOT NULL DEFAULT 0",
             "criteria": "TEXT",
+            "snapshot": "TEXT",
         }
         for column, spec in additions.items():
             if column not in existing:

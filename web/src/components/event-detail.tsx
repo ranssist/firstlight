@@ -2,7 +2,7 @@ import { Check, X } from "lucide-react"
 
 import { TierBadge } from "@/components/tier-badge"
 import { Separator } from "@/components/ui/separator"
-import type { FireEvent } from "@/lib/api"
+import { snapshotUrl, type FireEvent } from "@/lib/api"
 import { cn } from "@/lib/utils"
 
 /** 특징 이름을 사람이 읽을 수 있는 말로. `verify/features.py` 와 대응한다. */
@@ -70,6 +70,8 @@ export function EventDetail({ event }: { event: FireEvent | null }) {
     )
   }
 
+  const snapshot = snapshotUrl(event.snapshot)
+
   // 기여도 절댓값 상위 5개 — 이 등급이 나온 이유의 대부분이다.
   const contributions = Object.entries(event.explanation ?? {})
     .sort((a, b) => Math.abs(b[1]) - Math.abs(a[1]))
@@ -84,6 +86,19 @@ export function EventDetail({ event }: { event: FireEvent | null }) {
           #{event.event_id} · 트랙 {event.track_id}
         </span>
       </div>
+
+      {snapshot && (
+        <figure className="space-y-1.5">
+          <img
+            src={snapshot}
+            alt={`탐지 지점 크롭 — ${event.tier}, 관측 ${event.n_observations}회`}
+            className="bg-muted max-h-64 w-full rounded-lg border object-contain"
+          />
+          <figcaption className="text-muted-foreground text-xs">
+            탐지 시점 크롭 · 박스는 등급 색 · 주변 맥락 포함
+          </figcaption>
+        </figure>
+      )}
 
       <div className="space-y-1.5">
         <Row label="검증 점수" value={event.score.toFixed(3)} />

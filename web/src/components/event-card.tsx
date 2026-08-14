@@ -3,7 +3,12 @@ import { Check, MapPinOff, X } from "lucide-react"
 import { TierBadge } from "@/components/tier-badge"
 import { Button } from "@/components/ui/button"
 import { Card } from "@/components/ui/card"
-import { TIER_STYLES, type EventLabel, type FireEvent } from "@/lib/api"
+import {
+  snapshotUrl,
+  TIER_STYLES,
+  type EventLabel,
+  type FireEvent,
+} from "@/lib/api"
 import { cn } from "@/lib/utils"
 
 /** 지오레퍼런싱 거절 사유를 사람 말로 옮긴다.
@@ -40,6 +45,7 @@ export function EventCard({
 }) {
   const style = TIER_STYLES[event.tier]
   const labelled = event.label !== "unlabelled"
+  const snapshot = snapshotUrl(event.snapshot)
 
   return (
     <Card
@@ -64,27 +70,65 @@ export function EventCard({
         </span>
       </div>
 
-      {event.geo_ok && event.lat !== null && event.lon !== null ? (
-        <div className="mt-2 font-mono text-[13px] tabular-nums">
-          {event.lat.toFixed(5)}N {event.lon.toFixed(5)}E
-          <span className="text-muted-foreground ml-1.5">
-            ± {Math.round(event.cep50_m ?? 0)}m
-          </span>
-        </div>
-      ) : (
-        <div className="text-glow mt-2 flex items-start gap-1.5 text-[13px]">
-          <MapPinOff className="mt-0.5 size-3.5 shrink-0" aria-hidden />
-          <span>
-            좌표 미발행
-            <span className="text-muted-foreground">
-              {" — "}
-              {REJECT_REASON_KO[event.geo_reject_reason ?? ""] ??
-                event.geo_reject_reason ??
-                "사유 미상"}
-            </span>
-          </span>
+      {/* 탐지 시점 크롭. 좌표와 점수만으로는 "실제 연기 / 오탐"을 고를 수
+          없다 — 요원이 실제로 보는 것은 그 순간 그 자리의 그림이다. */}
+      {snapshot && (
+        <div className="mt-2.5 flex gap-2.5">
+          <img
+            src={snapshot}
+            alt={`탐지 지점 크롭 — ${event.tier}, 신뢰도 ${event.confidence.toFixed(2)}`}
+            loading="lazy"
+            className="bg-muted size-20 shrink-0 rounded-md border object-cover"
+          />
+          <div className="min-w-0 flex-1 self-center">
+            {event.geo_ok && event.lat !== null && event.lon !== null ? (
+              <div className="font-mono text-[13px] tabular-nums">
+                {event.lat.toFixed(5)}N {event.lon.toFixed(5)}E
+                <span className="text-muted-foreground ml-1.5">
+                  ± {Math.round(event.cep50_m ?? 0)}m
+                </span>
+              </div>
+            ) : (
+              <div className="text-glow flex items-start gap-1.5 text-[13px]">
+                <MapPinOff className="mt-0.5 size-3.5 shrink-0" aria-hidden />
+                <span>
+                  좌표 미발행
+                  <span className="text-muted-foreground">
+                    {" — "}
+                    {REJECT_REASON_KO[event.geo_reject_reason ?? ""] ??
+                      event.geo_reject_reason ??
+                      "사유 미상"}
+                  </span>
+                </span>
+              </div>
+            )}
+          </div>
         </div>
       )}
+
+      {/* 스냅샷이 있으면 위쪽 블록이 좌표를 이미 보여준다 */}
+      {!snapshot &&
+        (event.geo_ok && event.lat !== null && event.lon !== null ? (
+          <div className="mt-2 font-mono text-[13px] tabular-nums">
+            {event.lat.toFixed(5)}N {event.lon.toFixed(5)}E
+            <span className="text-muted-foreground ml-1.5">
+              ± {Math.round(event.cep50_m ?? 0)}m
+            </span>
+          </div>
+        ) : (
+          <div className="text-glow mt-2 flex items-start gap-1.5 text-[13px]">
+            <MapPinOff className="mt-0.5 size-3.5 shrink-0" aria-hidden />
+            <span>
+              좌표 미발행
+              <span className="text-muted-foreground">
+                {" — "}
+                {REJECT_REASON_KO[event.geo_reject_reason ?? ""] ??
+                  event.geo_reject_reason ??
+                  "사유 미상"}
+              </span>
+            </span>
+          </div>
+        ))}
 
       <div className="text-muted-foreground mt-2 flex flex-wrap gap-x-3.5 gap-y-1 text-xs">
         <Field label="t" value={`${event.timestamp.toFixed(0)}s`} />

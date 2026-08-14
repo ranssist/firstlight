@@ -56,6 +56,11 @@ class Event:
     area_ok: bool = False
     criteria: dict = field(default_factory=dict)
 
+    # 탐지 시점 크롭 이미지의 파일명. 관제 요원이 1클릭 판정을 하려면
+    # 좌표·점수만이 아니라 "그 순간 그 자리의 그림"이 있어야 한다.
+    # 정적 데모에서는 data URI 가 들어간다.
+    snapshot: str | None = None
+
     # 환류
     label: EventLabel = EventLabel.UNLABELLED
     features: dict = field(default_factory=dict)
@@ -154,6 +159,7 @@ class Event:
             "flow_ok": int(self.flow_ok),
             "area_ok": int(self.area_ok),
             "criteria": json.dumps(self.criteria, ensure_ascii=False),
+            "snapshot": self.snapshot,
             "label": self.label.value,
             "features": json.dumps(self.features, ensure_ascii=False),
             "explanation": json.dumps(self.explanation, ensure_ascii=False),
@@ -185,6 +191,7 @@ class Event:
             flow_ok=bool(row["flow_ok"]),
             area_ok=bool(row["area_ok"]),
             criteria=json.loads(row["criteria"] or "{}"),
+            snapshot=row["snapshot"],
             label=EventLabel(row["label"]),
             features=json.loads(row["features"] or "{}"),
             explanation=json.loads(row["explanation"] or "{}"),
