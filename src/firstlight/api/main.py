@@ -212,6 +212,38 @@ def create_app(
             logging.getLogger("firstlight.api").exception("이벤트 스트림 실패")
             raise
 
+    @app.post("/api/events/{event_id}/response")
+    def set_response(event_id: int, payload: dict) -> JSONResponse:
+        """대응 상태 갱신 (접수-출동-진화).
+
+        되돌리기는 막는다 — 이력 타임라인은 대응 지연을 재기 위한 기록이라
+        순서가 뒤집히면 의미가 없다. 잘못 눌렀으면 로그로 남는 편이 맞다.
+        """
+        from firstlight.events.models import ResponseStatus
+
+        raw = payload.get("response", "")
+        try:
+            status = ResponseStatus(raw)
+        except ValueError as exc:
+            raise HTTPException(
+                400, f"response 는 {[s.value for s in ResponseStatus]} 중 하나여야 한다"
+            ) from exc
+
+        event = store.get(event_id)
+        if event is None:
+            raise HTTPException(404, "이벤트를 찾을 수 없다")
+        if status.order <= event.response.order:
+            raise HTTPException(
+                400,
+                f"대응 상태는 되돌릴 수 없다 (현재 {event.response.label_ko} "
+                f"→ 요청 {status.label_ko})",
+            )
+
+        store.set_response(event_id, status)
+        return JSONResponse(
+            {"ok": True, "event_id": event_id, "response": status.value}
+        )
+
     @app.get("/api/summary")
     def summary() -> JSONResponse:
         counts = store.counts_by_tier(site=site_name)

@@ -20,6 +20,35 @@ class EventLabel(str, Enum):
     FALSE_POSITIVE = "false_positive"
 
 
+class ResponseStatus(str, Enum):
+    """대응 진행 상태 — 작품설명서 「이력 타임라인: 경보 이력 및 대응 상태
+    (접수-출동-진화)」.
+
+    판정(`EventLabel`)과는 다른 축이다. 판정은 "연기가 맞았나"를 묻고 —
+    재학습 라벨이 된다 — 대응 상태는 "그래서 어떻게 됐나"를 기록한다.
+    같은 필드에 섞으면 오탐으로 판정한 이벤트에 '출동'을 표시할 수 없게 된다.
+    """
+
+    NONE = "none"              # 아직 대응 절차에 들어가지 않음
+    RECEIVED = "received"      # 접수 — 담당자가 경보를 받았다
+    DISPATCHED = "dispatched"  # 출동 — 진화대가 이동 중
+    SUPPRESSED = "suppressed"  # 진화 — 현장 대응 완료
+
+    @property
+    def label_ko(self) -> str:
+        return {
+            "none": "미대응",
+            "received": "접수",
+            "dispatched": "출동",
+            "suppressed": "진화",
+        }[self.value]
+
+    @property
+    def order(self) -> int:
+        """진행 순서. 되돌리기를 막는 데 쓴다."""
+        return ["none", "received", "dispatched", "suppressed"].index(self.value)
+
+
 @dataclass
 class Event:
     """단일 연기 후보에 대한 시스템의 판단.
@@ -60,6 +89,11 @@ class Event:
     # 좌표·점수만이 아니라 "그 순간 그 자리의 그림"이 있어야 한다.
     # 정적 데모에서는 data URI 가 들어간다.
     snapshot: str | None = None
+
+    # 대응 진행 상태 (접수-출동-진화). 판정과 별개 축이다.
+    response: ResponseStatus = ResponseStatus.NONE
+    # 상태가 바뀐 시각들 — 이력 타임라인이 이걸 그린다.
+    response_history: list = field(default_factory=list)
 
     # 환류
     label: EventLabel = EventLabel.UNLABELLED
@@ -160,6 +194,8 @@ class Event:
             "area_ok": int(self.area_ok),
             "criteria": json.dumps(self.criteria, ensure_ascii=False),
             "snapshot": self.snapshot,
+            "response": self.response.value,
+            "response_history": json.dumps(self.response_history, ensure_ascii=False),
             "label": self.label.value,
             "features": json.dumps(self.features, ensure_ascii=False),
             "explanation": json.dumps(self.explanation, ensure_ascii=False),
@@ -192,6 +228,8 @@ class Event:
             area_ok=bool(row["area_ok"]),
             criteria=json.loads(row["criteria"] or "{}"),
             snapshot=row["snapshot"],
+            response=ResponseStatus(row["response"] or "none"),
+            response_history=json.loads(row["response_history"] or "[]"),
             label=EventLabel(row["label"]),
             features=json.loads(row["features"] or "{}"),
             explanation=json.loads(row["explanation"] or "{}"),
@@ -203,6 +241,8 @@ class Event:
         data = asdict(self)
         data["tier"] = self.tier.value
         data["label"] = self.label.value
+        data["response"] = self.response.value
+        data["response_label_ko"] = self.response.label_ko
         data["tier_colour"] = self.tier.colour
         data["tier_label_ko"] = self.tier.label_ko
         data["bbox"] = list(self.bbox)

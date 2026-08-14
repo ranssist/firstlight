@@ -2,7 +2,9 @@ import { Check, X } from "lucide-react"
 
 import { TierBadge } from "@/components/tier-badge"
 import { Separator } from "@/components/ui/separator"
-import { snapshotUrl, type FireEvent } from "@/lib/api"
+import { ResponseTimeline } from "@/components/response-timeline"
+import { snapshotUrl, type FireEvent, type ResponseStatus } from "@/lib/api"
+import { demoSequenceGif } from "@/lib/demo"
 import { cn } from "@/lib/utils"
 
 /** 특징 이름을 사람이 읽을 수 있는 말로. `verify/features.py` 와 대응한다. */
@@ -61,7 +63,15 @@ function Row({ label, value }: { label: string; value: React.ReactNode }) {
   )
 }
 
-export function EventDetail({ event }: { event: FireEvent | null }) {
+export function EventDetail({
+  event,
+  onAdvanceResponse,
+  responsePending,
+}: {
+  event: FireEvent | null
+  onAdvanceResponse?: (status: ResponseStatus) => void
+  responsePending?: boolean
+}) {
   if (!event) {
     return (
       <p className="text-muted-foreground text-sm">
@@ -71,6 +81,9 @@ export function EventDetail({ event }: { event: FireEvent | null }) {
   }
 
   const snapshot = snapshotUrl(event.snapshot)
+  // 데모는 키로 조회, 실시간은 파일명 → API 경로.
+  const sequenceGif =
+    demoSequenceGif(event.sequence_gif_key) ?? snapshotUrl(event.sequence_gif ?? null)
 
   // 기여도 절댓값 상위 5개 — 이 등급이 나온 이유의 대부분이다.
   const contributions = Object.entries(event.explanation ?? {})
@@ -87,15 +100,28 @@ export function EventDetail({ event }: { event: FireEvent | null }) {
         </span>
       </div>
 
-      {snapshot && (
+      {(snapshot || sequenceGif) && (
         <figure className="space-y-1.5">
-          <img
-            src={snapshot}
-            alt={`탐지 지점 크롭 — ${event.tier}, 관측 ${event.n_observations}회`}
-            className="bg-muted max-h-64 w-full rounded-lg border object-contain"
-          />
+          <div className="grid gap-2" style={{ gridTemplateColumns: sequenceGif && snapshot ? "1fr 1fr" : "1fr" }}>
+            {snapshot && (
+              <img
+                src={snapshot}
+                alt={`탐지 지점 크롭 — ${event.tier}, 관측 ${event.n_observations}회`}
+                className="bg-muted max-h-56 w-full rounded-lg border object-contain"
+              />
+            )}
+            {sequenceGif && (
+              <img
+                src={sequenceGif}
+                alt="시퀀스 GIF — 트랙 전체의 형태 변화와 상승 운동"
+                className="bg-muted max-h-56 w-full rounded-lg border object-contain"
+              />
+            )}
+          </div>
           <figcaption className="text-muted-foreground text-xs">
-            탐지 시점 크롭 · 박스는 등급 색 · 주변 맥락 포함
+            {sequenceGif
+              ? "왼쪽 탐지 시점 크롭 · 오른쪽 시퀀스 GIF(고정 크롭이라 연기가 자라는 것이 보인다)"
+              : "탐지 시점 크롭 · 박스는 등급 색 · 주변 맥락 포함"}
           </figcaption>
         </figure>
       )}
@@ -124,6 +150,17 @@ export function EventDetail({ event }: { event: FireEvent | null }) {
           />
         )}
       </div>
+
+      {onAdvanceResponse && (
+        <>
+          <Separator />
+          <ResponseTimeline
+            event={event}
+            onAdvance={onAdvanceResponse}
+            pending={Boolean(responsePending)}
+          />
+        </>
+      )}
 
       <Separator />
 

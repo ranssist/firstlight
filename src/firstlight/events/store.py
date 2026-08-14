@@ -36,6 +36,8 @@ CREATE TABLE IF NOT EXISTS events (
     area_ok           INTEGER NOT NULL DEFAULT 0,
     criteria          TEXT,
     snapshot          TEXT,
+    response          TEXT    NOT NULL DEFAULT 'none',
+    response_history  TEXT,
     label             TEXT    NOT NULL DEFAULT 'unlabelled',
     features          TEXT,
     explanation       TEXT,
@@ -75,6 +77,8 @@ class EventStore:
             "area_ok": "INTEGER NOT NULL DEFAULT 0",
             "criteria": "TEXT",
             "snapshot": "TEXT",
+            "response": "TEXT NOT NULL DEFAULT 'none'",
+            "response_history": "TEXT",
         }
         for column, spec in additions.items():
             if column not in existing:
@@ -130,6 +134,32 @@ class EventStore:
     def set_label(self, event_id: int, label: EventLabel) -> bool:
         cursor = self.conn.execute(
             "UPDATE events SET label = ? WHERE id = ?", (label.value, event_id)
+        )
+        self.conn.commit()
+        return cursor.rowcount > 0
+
+    def set_response(self, event_id: int, status, at: float | None = None) -> bool:
+        """대응 상태를 바꾸고 이력에 시각을 남긴다.
+
+        이력을 남기는 이유: 타임라인이 "언제 접수했고 언제 출동했나"를 보여야
+        하는데, 현재 상태만 두면 그 간격을 알 수 없다. 대응 지연은 이 시스템이
+        줄이려는 바로 그 값이라 측정 가능해야 한다.
+        """
+        import json
+        import time
+
+        row = self.conn.execute(
+            "SELECT response_history FROM events WHERE id = ?", (event_id,)
+        ).fetchone()
+        if row is None:
+            return False
+
+        history = json.loads(row["response_history"] or "[]")
+        history.append({"status": status.value, "at": at if at is not None else time.time()})
+
+        cursor = self.conn.execute(
+            "UPDATE events SET response = ?, response_history = ? WHERE id = ?",
+            (status.value, json.dumps(history, ensure_ascii=False), event_id),
         )
         self.conn.commit()
         return cursor.rowcount > 0

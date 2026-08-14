@@ -8,6 +8,31 @@
 export type Tier = "FLARE" | "GLOW" | "SPARK"
 export type EventLabel = "unlabelled" | "confirmed" | "false_positive"
 
+/** 대응 진행 상태 — 작품설명서 「이력 타임라인: … 대응 상태(접수-출동-진화)」.
+ *  판정(EventLabel)과 다른 축이다: 판정은 "연기가 맞았나", 이쪽은 "어떻게 됐나". */
+export type ResponseStatus = "none" | "received" | "dispatched" | "suppressed"
+
+export const RESPONSE_STEPS: { value: ResponseStatus; label: string }[] = [
+  { value: "received", label: "접수" },
+  { value: "dispatched", label: "출동" },
+  { value: "suppressed", label: "진화" },
+]
+
+export const RESPONSE_ORDER: ResponseStatus[] = [
+  "none",
+  "received",
+  "dispatched",
+  "suppressed",
+]
+
+/** 백엔드의 `ResponseStatus.label_ko` 와 같은 표기를 쓴다. */
+export const RESPONSE_LABEL_KO: Record<ResponseStatus, string> = {
+  none: "미대응",
+  received: "접수",
+  dispatched: "출동",
+  suppressed: "진화",
+}
+
 export interface FireEvent {
   event_id: number
   track_id: number
@@ -34,6 +59,15 @@ export interface FireEvent {
 
   /** 탐지 시점 크롭 이미지. 실시간 모드는 파일명, 데모는 data URI 다. */
   snapshot: string | null
+  /** 트랙 전체를 고정 크롭으로 묶은 시퀀스 GIF — 형태 확산·상승 운동이 보인다.
+   *  실시간 모드는 파일명, 데모는 트랙 키(별도 사전에서 조회). */
+  sequence_gif?: string | null
+  sequence_gif_key?: string | null
+
+  /** 대응 진행 상태 (접수-출동-진화). 판정과는 별개 축이다. */
+  response: ResponseStatus
+  response_label_ko: string
+  response_history: { status: ResponseStatus; at: number }[]
 
   /** 시퀀스 검증 2조건 (작품설명서 Ⅱ-1). 등급의 직접적 근거다. */
   flow_ok: boolean
@@ -110,6 +144,13 @@ export const api = {
       method: "POST",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({ label }),
+    }),
+
+  setResponse: (eventId: number, response: ResponseStatus) =>
+    json<{ ok: boolean }>(`/api/events/${eventId}/response`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ response }),
     }),
 
   retrain: () =>

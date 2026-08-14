@@ -14,9 +14,11 @@ import { Tabs, TabsList, TabsTrigger } from "@/components/ui/tabs"
 import { TooltipProvider } from "@/components/ui/tooltip"
 import {
   api,
+  RESPONSE_LABEL_KO,
   TIER_ORDER,
   type EventLabel,
   type FireEvent,
+  type ResponseStatus,
   type SiteInfo,
   type Summary,
   type Tier,
@@ -35,6 +37,7 @@ export default function App() {
   const [selectedId, setSelectedId] = useState<number | null>(null)
   const [pendingId, setPendingId] = useState<number | null>(null)
   const [retraining, setRetraining] = useState(false)
+  const [responsePending, setResponsePending] = useState(false)
 
   // 이벤트는 WebSocket 이 밀어주고, 집계는 REST 로 가져온다.
   // 데모 배포에는 서버가 없으므로 소켓을 아예 열지 않는다.
@@ -124,6 +127,43 @@ export default function App() {
     }
   }
 
+  const handleAdvanceResponse = async (
+    eventId: number,
+    status: ResponseStatus,
+  ) => {
+    const stamp = Date.now() / 1000
+    const apply = (e: FireEvent) =>
+      e.event_id === eventId
+        ? {
+            ...e,
+            response: status,
+            response_label_ko: RESPONSE_LABEL_KO[status],
+            response_history: [...(e.response_history ?? []), { status, at: stamp }],
+          }
+        : e
+
+    if (IS_DEMO) {
+      setEvents((prev) => (prev ?? []).map(apply))
+      toast.success(`대응 상태: ${RESPONSE_LABEL_KO[status]}`, {
+        description: "데모에서는 저장되지 않습니다.",
+      })
+      return
+    }
+
+    setResponsePending(true)
+    try {
+      await api.setResponse(eventId, status)
+      setEvents((prev) => (prev ?? []).map(apply))
+      await refresh()
+    } catch (error) {
+      toast.error("대응 상태를 기록하지 못했습니다", {
+        description: error instanceof Error ? error.message : undefined,
+      })
+    } finally {
+      setResponsePending(false)
+    }
+  }
+
   const handleRetrain = async () => {
     if (IS_DEMO) {
       // 실제 서버가 거절하는 것과 같은 사유를 보인다 — 데모라고 성공한
@@ -184,7 +224,15 @@ export default function App() {
                 <CardTitle className="text-sm">선택한 이벤트</CardTitle>
               </CardHeader>
               <CardContent>
-                <EventDetail event={selected} />
+                <EventDetail
+                  event={selected}
+                  responsePending={responsePending}
+                  onAdvanceResponse={
+                    selected
+                      ? (status) => void handleAdvanceResponse(selected.event_id, status)
+                      : undefined
+                  }
+                />
               </CardContent>
             </Card>
           </div>

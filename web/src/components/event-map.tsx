@@ -5,6 +5,7 @@ import {
   ImageOverlay,
   MapContainer,
   Marker,
+  Polyline,
   Popup,
   TileLayer,
   useMap,
@@ -42,17 +43,41 @@ const unitIcon = L.divIcon({
   iconAnchor: [11, 11],
 })
 
-/** 이벤트가 바뀌면 보이는 범위를 다시 맞춘다. */
-function FitBounds({ points }: { points: FireEvent[] }) {
+/** 관측 지점(드론) 마커. 진화대와 헷갈리지 않도록 사각형으로 구분한다. */
+const droneIcon = L.divIcon({
+  className: "",
+  html: `<div style="
+    width:20px;height:20px;border-radius:4px;
+    background:var(--foreground);border:2px solid var(--background);
+    box-shadow:0 1px 4px rgba(0,0,0,.5);
+    display:grid;place-items:center;font-size:10px;
+    color:var(--background);font-weight:700;
+  ">▲</div>`,
+  iconSize: [20, 20],
+  iconAnchor: [10, 10],
+})
+
+/** 보이는 범위를 다시 맞춘다.
+ *
+ * 이벤트뿐 아니라 관측 지점과 진화대까지 담는다 — 지도의 일이 "불이 어디고
+ * 누가 얼마나 떨어져 있나"를 한눈에 보이는 것이라, 진화대가 화면 밖이면
+ * 그 판단을 할 수 없다. */
+function FitBounds({
+  points,
+  extra,
+}: {
+  points: FireEvent[]
+  extra: [number, number][]
+}) {
   const map = useMap()
   useEffect(() => {
-    const located = points.filter((p) => p.geo_ok && p.lat !== null)
-    if (located.length === 0) return
-    const bounds = L.latLngBounds(
-      located.map((p) => [p.lat as number, p.lon as number]),
-    )
-    map.fitBounds(bounds.pad(0.35), { animate: false, maxZoom: 15 })
-  }, [map, points])
+    const located = points
+      .filter((p) => p.geo_ok && p.lat !== null)
+      .map((p) => [p.lat as number, p.lon as number] as [number, number])
+    const all = [...located, ...extra]
+    if (all.length === 0) return
+    map.fitBounds(L.latLngBounds(all).pad(0.2), { animate: false, maxZoom: 15 })
+  }, [map, points, extra])
   return null
 }
 
@@ -77,6 +102,14 @@ export function EventMap({
       ? [located[0].lat, located[0].lon]
       : [36.4127, 128.7043]
 
+  // 관측 지점과 진화대도 화면 안에 들어와야 거리 판단이 된다.
+  const anchors: [number, number][] = site
+    ? [
+        [site.lat, site.lon],
+        ...site.response_units.map((u) => [u.lat, u.lon] as [number, number]),
+      ]
+    : []
+
   return (
     <div className="relative h-[320px] w-full overflow-hidden rounded-lg border">
       <MapContainer
@@ -95,7 +128,43 @@ export function EventMap({
         ) : (
           <TileLayer url={TILE_URL} attribution={TILE_ATTRIBUTION} maxZoom={19} />
         )}
-        <FitBounds points={events} />
+        <FitBounds points={events} extra={anchors} />
+
+        {/* 관측 지점(드론). 작품설명서의 지도 패널은 "드론 실시간 위치와
+            순찰 경로"를 요구하지만, 이 데이터는 고정 자세를 가정해 처리한
+            것이라 **경로가 존재하지 않는다.** 없는 경로를 그리는 대신
+            위치만 표시하고, 이벤트까지의 시선을 실선으로 잇는다 —
+            좌표가 어디서 어떻게 나온 것인지 읽히게 하는 것이 목적이다. */}
+        {site && (
+          <>
+            {located.map((event) => (
+              <Polyline
+                key={`los-${event.event_id}`}
+                positions={[
+                  [site.lat, site.lon],
+                  [event.lat, event.lon],
+                ]}
+                pathOptions={{
+                  color: event.tier_colour,
+                  weight: 1,
+                  opacity: selectedId === event.event_id ? 0.55 : 0.14,
+                  dashArray: "2 5",
+                }}
+              />
+            ))}
+            <Marker position={[site.lat, site.lon]} icon={droneIcon}>
+              <Popup>
+                <b>관측 지점</b>
+                <br />
+                {site.lat.toFixed(5)}N {site.lon.toFixed(5)}E
+                <br />
+                <span style={{ opacity: 0.7 }}>
+                  고정 자세 가정 — 순찰 경로는 실비행 텔레메트리가 있어야 그려진다
+                </span>
+              </Popup>
+            </Marker>
+          </>
+        )}
 
         {/* 최근접 진화대 */}
         {(site?.response_units ?? []).map((unit) => (

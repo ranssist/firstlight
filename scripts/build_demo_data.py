@@ -177,6 +177,9 @@ def embed_snapshots(events: list[dict], snapshot_dir: Path | None = None) -> Non
             continue
         raw = path.read_bytes()
         total_bytes += len(raw)
+        # data URI 로 덮어쓰기 전에 원래 파일명을 남긴다 — 시퀀스 GIF 를
+        # 트랙에 매칭하는 키가 파일명에 들어 있다.
+        event["_snapshot_name"] = name
         event["snapshot"] = (
             "data:image/jpeg;base64," + base64.b64encode(raw).decode("ascii")
         )
@@ -185,6 +188,92 @@ def embed_snapshots(events: list[dict], snapshot_dir: Path | None = None) -> Non
     print(f"  스냅샷 {embedded}건 임베드 · {total_bytes / 1024:.0f} KB (원본)")
     if missing:
         print(f"    스냅샷 없는 이벤트 {missing}건 — 카드에서 이미지 자리가 비워진다")
+
+
+def embed_sequence_gifs(events: list[dict], gif_dir: Path | None = None) -> dict[str, str]:
+    """시퀀스 GIF 를 별도 사전으로 내보내고, 이벤트에는 **키만** 붙인다.
+
+    GIF 는 트랙 단위라 한 트랙의 이벤트 수십 건이 같은 파일을 공유한다.
+    data URI 를 이벤트마다 복사하면 40건짜리 트랙 하나가 335KB × 40 = 13MB 가
+    된다 (실제로 그렇게 만들었다가 번들이 24MB 로 튀어 한도를 넘겼다).
+    키로 참조하면 GIF 당 한 번만 실린다.
+
+    Returns:
+        {트랙 키: data URI}
+    """
+    import json
+    import re
+
+    gif_dir = gif_dir or (ROOT / "data" / "gifs")
+    manifest_path = gif_dir / "manifest.json"
+    if not manifest_path.is_file():
+        print("  시퀀스 GIF 없음 — scripts/build_sequence_gifs.py 를 먼저 돌린다")
+        return {}
+
+    manifest = json.loads(manifest_path.read_text(encoding="utf-8"))
+    gifs: dict[str, str] = {}
+    total = 0
+    for key, filename in manifest.items():
+        path = gif_dir / filename
+        if not path.is_file():
+            continue
+        raw = path.read_bytes()
+        total += len(raw)
+        gifs[key] = "data:image/gif;base64," + base64.b64encode(raw).decode("ascii")
+
+    pattern = re.compile(r"^(?P<key>.+-t\d+)-f\d+$")
+    attached = 0
+    for event in events:
+        name = event.get("_snapshot_name")
+        if not name:
+            continue
+        match = pattern.match(Path(name).stem)
+        if match and match.group("key") in gifs:
+            event["sequence_gif_key"] = match.group("key")
+            attached += 1
+
+    print(
+        f"  시퀀스 GIF {len(gifs)}개 → 이벤트 {attached}건이 참조 · "
+        f"{total / 1024:.0f} KB (중복 없음)"
+    )
+    return gifs
+
+
+def seed_response_states(events: list[dict]) -> None:
+    """데모에 대응 이력을 몇 건 심는다.
+
+    전부 '미대응'이면 타임라인이 빈 채로만 보여서 기능이 있는지조차 알 수
+    없다. 실제 운용에서 나올 법한 상태 — FLARE 는 접수·출동까지 갔고
+    나머지는 아직 — 를 만들어 화면이 무엇을 하는지 보이게 한다.
+    """
+    import time
+
+    now = time.time()
+    flares = [e for e in events if e["tier"] == "FLARE"]
+    if not flares:
+        return
+
+    plan = [
+        (flares[0], ["received", "dispatched", "suppressed"]),
+        (flares[1] if len(flares) > 1 else None, ["received", "dispatched"]),
+        (flares[2] if len(flares) > 2 else None, ["received"]),
+    ]
+    ko = {"received": "접수", "dispatched": "출동", "suppressed": "진화"}
+
+    seeded = 0
+    for event, steps in plan:
+        if event is None:
+            continue
+        history = [
+            {"status": s, "at": now - (len(steps) - i) * 240}
+            for i, s in enumerate(steps)
+        ]
+        event["response"] = steps[-1]
+        event["response_label_ko"] = ko[steps[-1]]
+        event["response_history"] = history
+        seeded += 1
+
+    print(f"  대응 이력 {seeded}건 시드 (데모용 예시 상태)")
 
 
 def main() -> int:
@@ -200,6 +289,10 @@ def main() -> int:
 
     payload_events = [e.to_public_dict() for e in events]
     embed_snapshots(payload_events)
+    sequence_gifs = embed_sequence_gifs(payload_events)
+    seed_response_states(payload_events)
+    for event in payload_events:
+        event.pop("_snapshot_name", None)      # 내부 키는 내보내지 않는다
     counts = store.counts_by_tier()
     summary = {
         "counts": counts,
@@ -258,6 +351,9 @@ def main() -> int:
             ensure_ascii=False,
         ),
         encoding="utf-8",
+    )
+    (DEST / "gifs.json").write_text(
+        json.dumps(sequence_gifs, ensure_ascii=False), encoding="utf-8"
     )
 
     store.close()

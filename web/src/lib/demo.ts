@@ -14,6 +14,7 @@ import eventsJson from "@/demo/events.json"
 import summaryJson from "@/demo/summary.json"
 import siteJson from "@/demo/site.json"
 import hillshadeJson from "@/demo/hillshade.json"
+import gifsJson from "@/demo/gifs.json"
 
 export const IS_DEMO = import.meta.env.VITE_DEMO === "1"
 
@@ -26,4 +27,12 @@ export const demoSite = siteJson as unknown as SiteInfo
 export const demoHillshade = hillshadeJson as unknown as {
   image: string
   bounds: [[number, number], [number, number]]
+}
+
+/** 트랙별 시퀀스 GIF. 이벤트는 키로만 참조한다 — 한 트랙에 이벤트가
+ *  수십 건이라 data URI 를 복사하면 번들이 수십 MB 로 튄다. */
+const demoGifs = gifsJson as unknown as Record<string, string>
+
+export function demoSequenceGif(key: string | null | undefined): string | null {
+  return key ? (demoGifs[key] ?? null) : null
 }

@@ -1,6 +1,7 @@
-import { Check, MapPinOff, X } from "lucide-react"
+import { Check, MapPinOff, Truck, X } from "lucide-react"
 
 import { TierBadge } from "@/components/tier-badge"
+import { Badge } from "@/components/ui/badge"
 import { Button } from "@/components/ui/button"
 import { Card } from "@/components/ui/card"
 import {
@@ -65,6 +66,17 @@ export function EventCard({
         <span className="text-muted-foreground text-xs">
           관측 {event.n_observations}회
         </span>
+        {/* 대응이 시작된 건은 큐에서 바로 구분돼야 한다 — 이미 출동한
+            현장을 다시 판정하려 들면 안 된다. */}
+        {event.response !== "none" && (
+          <Badge
+            variant="outline"
+            className="border-flare/40 text-flare gap-1 text-[11px]"
+          >
+            <Truck className="size-3" aria-hidden />
+            {event.response_label_ko}
+          </Badge>
+        )}
         <span className="text-muted-foreground ml-auto font-mono text-xs tabular-nums">
           #{event.event_id}
         </span>
